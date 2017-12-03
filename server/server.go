@@ -19,13 +19,9 @@ func NewServer() *Server {
 	}
 }
 
-func marketHandler(w http.ResponseWriter, r *http.Request) {
-	markets, _ := GetMarkets()
-
-	for _, m := range markets {
-		j, _ := json.Marshal(m)
-		w.Write(j)
-	}
+func (s *Server) rootHandler(w http.ResponseWriter, r *http.Request) {
+	m, _ := json.Marshal("hello")
+	w.Write(m)
 }
 
 func (s *Server) statusHandler(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +43,7 @@ func (s *Server) orderHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Run() {
+	http.HandleFunc("/", s.rootHandler)
 	http.HandleFunc("/status", s.statusHandler)
 	http.HandleFunc("/exchange", s.orderHandler)
 
