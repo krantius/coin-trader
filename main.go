@@ -1,7 +1,8 @@
 package main
 
-import "github.com/mkrant/trader/server"
+import "github.com/mkrant/coin-trader/server"
 
 func main() {
-	server.Run()
+	s := server.NewServer()
+	s.Run()
 }

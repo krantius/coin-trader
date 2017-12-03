@@ -1,22 +1,22 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 )
 
-func tickerHandler(w http.ResponseWriter, r *http.Request) {
+type Server struct {
+	b        *Broker
+	Trackers []*Tracker `json:"trackers"`
+}
 
-	c := Coins{}
-	for _, currency := range r.URL.Query()["currency"] {
-		t, _ := GetTicker(currency)
-		c.Coins = append(c.Coins, Coin{currency, t.Last})
+func NewServer() *Server {
+	return &Server{
+		b: NewMockBroker(),
 	}
-
-	b, _ := json.Marshal(c)
-	w.Write(b)
 }
 
 func marketHandler(w http.ResponseWriter, r *http.Request) {
@@ -28,23 +28,40 @@ func marketHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Run() {
-	http.HandleFunc("/ticker", tickerHandler)
-	http.HandleFunc("/markets", marketHandler)
+func (s *Server) statusHandler(w http.ResponseWriter, r *http.Request) {
+	j, err := json.Marshal(s)
+	if err != nil {
+		fmt.Printf("%v", err)
+	}
 
-	fmt.Println("Starting server on port 8080")
+	w.Write(j)
+}
 
-	c := make(chan string, 1)
+func (s *Server) orderHandler(w http.ResponseWriter, r *http.Request) {
+	j, err := json.Marshal(s.b.Exchange())
+	if err != nil {
+		fmt.Printf("%v", err)
+	}
+
+	w.Write(j)
+}
+
+func (s *Server) Run() {
+	http.HandleFunc("/status", s.statusHandler)
+	http.HandleFunc("/exchange", s.orderHandler)
+
+	go s.b.Work()
+
 	markets, _ := GetMarkets()
-
 	for _, m := range markets {
 		if !strings.HasPrefix(m.MarketName, "BTC") {
 			continue
 		}
-
-		t := NewTracker(m.MarketName, c)
-		go t.Start()
+		t := NewTracker(m.MarketName, s.b.trackerCh)
+		s.Trackers = append(s.Trackers, t)
+		go t.Start(context.Background())
 	}
 
+	fmt.Println("Starting server on port 8080")
 	http.ListenAndServe(":8080", nil)
 }

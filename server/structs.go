@@ -42,6 +42,23 @@ type Coins struct {
 }
 
 type Coin struct {
-	Currency string  `json:"currency"`
-	Value    float64 `json:"value"`
+	Currency string  `json:"Currency"`
+	Value    float64 `json:"Value"`
+}
+
+type Status struct {
+	Trackers []Tracker `json:"trackers"`
+}
+
+type OrderType string
+
+type Orders struct {
+	Orders []Order `json:"Orders"`
+}
+
+type Order struct {
+	Type     OrderType `json:"type"`
+	Currency string    `json:"Currency"`
+	Rate     float64   `json:"rate"`
+	Units    float64   `json:"units"`
 }
