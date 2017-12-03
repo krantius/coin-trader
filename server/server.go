@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -59,7 +60,8 @@ func (s *Server) Run() {
 		go t.Start(context.Background())
 	}
 
+	port := os.Getenv("PORT")
 	fmt.Println("Starting server on port 8080")
-	err := http.ListenAndServe(":8080", nil)
+	err := http.ListenAndServe(":"+port, nil)
 	fmt.Printf("error yo: %v\n", err)
 }
