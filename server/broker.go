@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -113,23 +114,30 @@ func WaitForTargetPrice(m string, target, stopLoss float64) float64 {
 
 	var sellPrice float64
 	t := time.NewTicker(15 * time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 
 	fmt.Printf("Waiting for target price %v for Market %s, or stop loss at %v\n", target, m, stopLoss)
-	for range t.C {
-		ticker, _ := GetTicker(m)
+	for {
+		select {
+		case <-t.C:
+			ticker, _ := GetTicker(m)
 
-		if ticker.Last >= target || ticker.Last <= stopLoss {
-			t.Stop()
-			sellPrice = ticker.Last
+			if ticker.Last >= target || ticker.Last <= stopLoss {
+				cancel()
+				t.Stop()
+				sellPrice = ticker.Last
+				fmt.Printf("Hit sell price of %v for coin %s", sellPrice, m)
+			}
+		case <-ctx.Done():
+			if sellPrice < target {
+				fmt.Printf("Selling shitcoin %s for loss at Value %v\n", m, sellPrice)
+			} else {
+				fmt.Printf("Selling shitcoin %s for gain at Value %v\n", m, sellPrice)
+			}
+			return sellPrice
 		}
 	}
 
-	if sellPrice < target {
-		fmt.Printf("Selling shitcoin %s for loss at Value %v\n", m, sellPrice)
-	} else {
-		fmt.Printf("Selling shitcoin %s for gain at Value %v\n", m, sellPrice)
-	}
-	return sellPrice
 }
 
 func (b *Broker) GetOrders() []Order {
