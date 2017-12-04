@@ -60,7 +60,7 @@ func (t *Tracker) calculateChange() {
 			t.buyChannel <- t.Market
 			t.hasAlerted = true
 		}
-	} else if t.PercentChange < -10.0 {
+	} else if t.PercentChange < -20.0 {
 		fmt.Printf("%s DUMPING: %f from %f to %f\n", t.Market, t.PercentChange, base, current)
 		t.hasAlerted = false
 	}

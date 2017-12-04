@@ -55,12 +55,12 @@ func (e *FakeExchange) Buy(market string) (Order, error) {
 		return Order{}, fmt.Errorf("error buying Market %s %v", market, err)
 	}
 
-	units := 1 / ticker.Ask
+	units := 1 / ticker.Last
 
 	order := &Order{
 		Type:     ORDER_BUY,
 		Currency: market,
-		Rate:     ticker.Ask,
+		Rate:     ticker.Last,
 		Units:    units,
 		Bitcoin:  1.0,
 	}
