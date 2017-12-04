@@ -8,12 +8,12 @@ import (
 )
 
 const (
-	dataSize = 120
+	dataSize = 60
 )
 
 type Tracker struct {
-	Market        string            `json:"Market"`
-	Arr           [dataSize]float64 `json:"Data"`
+	Market        string `json:"Market"`
+	arr           [dataSize]float64
 	current       int
 	base          int
 	PercentChange float64 `json:"PercentChange"`
@@ -32,7 +32,7 @@ func NewTracker(market string, c chan string) *Tracker {
 }
 
 func (t *Tracker) Start(ctx context.Context) {
-	ticker := time.NewTicker(15 * time.Second)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -67,15 +67,15 @@ func (t *Tracker) calculateChange() {
 }
 
 func (t *Tracker) getBase() float64 {
-	return t.Arr[t.base]
+	return t.arr[t.base]
 }
 
 func (t *Tracker) getCurrent() float64 {
-	return t.Arr[t.current]
+	return t.arr[t.current]
 }
 
 func (t *Tracker) update(last float64) {
-	t.Arr[t.current] = last
+	t.arr[t.current] = last
 	t.calculateChange()
 	t.current++
 

@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"sync"
+	"time"
 )
 
 const (
@@ -13,11 +14,13 @@ const (
 )
 
 type Broker struct {
-	buyCh     chan string
-	trackerCh chan string
-	state     int
-	stateM    sync.Mutex
-	exchange  Exchange
+	buyCh        chan string
+	trackerCh    chan string
+	state        int
+	stateM       sync.Mutex
+	exchange     Exchange
+	multipleBuys bool
+	Orders       []Order `json:"Orders"`
 }
 
 func NewBroker() *Broker {
@@ -29,58 +32,104 @@ func NewBroker() *Broker {
 	}
 }
 
-func NewMockBroker() *Broker {
+func NewFakeBroker() *Broker {
 	return &Broker{
-		buyCh:     make(chan string),
+		buyCh:     make(chan string, 25),
 		trackerCh: make(chan string),
 		state:     BUY,
-		exchange:  NewMockExchange(),
+		exchange:  NewFakeExchange(),
+		Orders:    []Order{},
 	}
 }
 
 func (b *Broker) listen() {
-	for {
-		market := <-b.trackerCh
-
+	for market := range b.trackerCh {
 		fmt.Printf("Received buy order for %s\n", market)
-		if b.getState() == BUY {
+		/*	if b.getState() == BUY {
 			b.buyCh <- market
-		}
+		}*/
+
+		go b.HandleTrade(market)
 	}
 }
 
 func (b *Broker) Work() {
 	go b.listen()
+	/*
+		for {
+			switch b.state {
+			case BUY:
+				fmt.Printf("Wait for buy with %v bitcoin\n", b.exchange.GetValue())
+				market := <-b.buyCh
+				fmt.Printf("Acting on buy order with Market: %s\n", market)
+				if err := b.exchange.Buy(market); err != nil {
+					fmt.Printf("Got error when buying: %v", err.Error())
 
-	for {
-		switch b.state {
-		case BUY:
-			fmt.Printf("Wait for buy with %f bitcoin\n", b.exchange.GetValue())
-			market := <-b.buyCh
-			fmt.Printf("Acting on buy order with Market: %s\n", market)
-			if err := b.exchange.Buy(market); err != nil {
-				fmt.Printf("Got error when buying: %v", err.Error())
+					continue
+				}
 
-				continue
+				b.state = BUYING
+
+			case BUYING:
+				// wait for order to fullfil etc
+				fmt.Println("Buying")
+				b.state = SELL
+			case SELL:
+				fmt.Println("Sell")
+				b.exchange.Sell()
+				b.state = SELLING
+				// sell stuff
+			case SELLING:
+				// wait for sell order to fullfil
+				fmt.Println("Selling")
+				b.state = BUY
 			}
+		}*/
+}
 
-			b.state = BUYING
+func (b *Broker) HandleTrade(currency string) {
+	bo, err := b.exchange.Buy(currency)
+	if err != nil {
+		fmt.Printf("Got error when buying: %v", err.Error())
+		return
+	}
 
-		case BUYING:
-			// wait for order to fullfil etc
-			fmt.Println("Buying")
-			b.state = SELL
-		case SELL:
-			fmt.Println("Sell")
-			b.exchange.Sell()
-			b.state = SELLING
-			// sell stuff
-		case SELLING:
-			// wait for sell order to fullfil
-			fmt.Println("Selling")
-			b.state = BUY
+	b.Orders = append(b.Orders, bo)
+
+	target := bo.Rate * TargetGainPercent
+	stopLoss := bo.Rate * StopLossPercent
+
+	WaitForTargetPrice(currency, target, stopLoss)
+	so, err := b.exchange.Sell(bo.Currency, bo.Units)
+	if err != nil {
+		fmt.Printf("got error during sell: %v", err)
+	}
+
+	b.Orders = append(b.Orders, so)
+}
+
+// Blocking function to wait for a target price
+func WaitForTargetPrice(m string, target, stopLoss float64) float64 {
+
+	var sellPrice float64
+	t := time.NewTicker(15 * time.Second)
+
+	fmt.Printf("Waiting for target price %v for Market %s, or stop loss at %v\n", target, m, stopLoss)
+	for range t.C {
+		ticker, _ := GetTicker(m)
+
+		if ticker.Last >= target || ticker.Last <= stopLoss {
+			t.Stop()
+			sellPrice = ticker.Last
 		}
 	}
+
+	if sellPrice < target {
+		fmt.Printf("Selling shitcoin %s for loss at Value %v\n", m, sellPrice)
+	} else {
+		fmt.Printf("Selling shitcoin %s for gain at Value %v\n", m, sellPrice)
+	}
+	return sellPrice
 }
 
 func (b *Broker) GetOrders() []Order {

@@ -61,4 +61,5 @@ type Order struct {
 	Currency string    `json:"Currency"`
 	Rate     float64   `json:"rate"`
 	Units    float64   `json:"units"`
+	Bitcoin  float64   `json:"btc"`
 }

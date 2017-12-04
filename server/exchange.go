@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"time"
 )
 
 const (
@@ -17,9 +16,9 @@ const (
 )
 
 type Exchange interface {
-	Buy(market string) error
-	Sell() error
-	GetValue() float64
+	Buy(market string) (Order, error)
+	Sell(market string, units float64) (Order, error)
+	//GetValue() float64
 	GetOrders() []Order
 }
 
@@ -27,11 +26,9 @@ type RealExchange struct {
 	url string
 }
 
-type MockExchange struct {
-	Value    float64 `json:"Value"`
-	Currency string  `json:"Currency"`
-	BuyPrice float64 `json:"BuyPrice"`
-	Orders   []Order `json:"Orders"`
+type FakeExchange struct {
+	Orders     []Order          `json:"Orders"`
+	RecentBuys map[string]Order `json:"RecentBuys"`
 }
 
 func NewRealExchange() *RealExchange {
@@ -40,83 +37,72 @@ func NewRealExchange() *RealExchange {
 	}
 }
 
-func NewMockExchange() *MockExchange {
-	return &MockExchange{
-		Value:    1.0,
-		Currency: "btc",
-		Orders:   []Order{},
+func NewFakeExchange() *FakeExchange {
+	return &FakeExchange{
+		Orders: []Order{},
 	}
 }
 
-func (*RealExchange) Buy(market string) error {
-	return nil
+func (*RealExchange) Buy(market string) (Order, error) {
+	return Order{}, nil
 }
 
-func (e *MockExchange) Buy(market string) error {
+// Each buy starts with 1 btc
+func (e *FakeExchange) Buy(market string) (Order, error) {
 	ticker, err := GetTicker(market)
 
 	if err != nil {
-		return fmt.Errorf("Error buying Market %s %v", market, err)
+		return Order{}, fmt.Errorf("error buying Market %s %v", market, err)
 	}
 
-	if e.Currency != "btc" {
-		return fmt.Errorf("expecting bitcoin, got %s", e.Currency)
-	}
-	e.Currency = market
-	btc := e.Value
-	e.Value = btc / ticker.Ask
-	e.BuyPrice = ticker.Ask
+	units := 1 / ticker.Ask
 
 	order := &Order{
 		Type:     ORDER_BUY,
-		Currency: e.Currency,
-		Rate:     e.BuyPrice,
-		Units:    e.Value,
+		Currency: market,
+		Rate:     ticker.Ask,
+		Units:    units,
+		Bitcoin:  1.0,
 	}
 
 	e.Orders = append(e.Orders, *order)
 	fmt.Printf("Buy: %v\n", order)
 
-	return nil
+	return *order, nil
 }
 
-func (*RealExchange) Sell() error {
-	return nil
+func (*RealExchange) Sell(market string, units float64) (Order, error) {
+	return Order{}, nil
 }
 
-func (e *MockExchange) Sell() error {
-	sellPrice := WaitForTargetPrice(e.Currency, e.BuyPrice)
+func (e *FakeExchange) Sell(market string, units float64) (Order, error) {
+	last, _ := GetTicker(market)
 
-	shitCoin := e.Value
-	e.Value = sellPrice * shitCoin
+	btc := last.Last * units
 
 	order := &Order{
 		Type:     ORDER_SELL,
-		Currency: e.Currency,
-		Rate:     sellPrice,
-		Units:    e.Value,
+		Currency: market,
+		Rate:     last.Last,
+		Units:    units,
+		Bitcoin:  btc,
 	}
 
 	e.Orders = append(e.Orders, *order)
 	fmt.Printf("Sold: %v\n", order)
-	e.Currency = "btc"
 
-	return nil
+	return *order, nil
 }
 
 func (e *RealExchange) GetValue() float64 {
 	return 0.0
 }
 
-func (e *MockExchange) GetValue() float64 {
-	return e.Value
-}
-
 func (e *RealExchange) GetOrders() []Order {
 	return nil
 }
 
-func (e *MockExchange) GetOrders() []Order {
+func (e *FakeExchange) GetOrders() []Order {
 	return e.Orders
 }
 
@@ -153,32 +139,6 @@ func GetMarkets() ([]Market, error) {
 	json.Unmarshal([]byte(body), &mr)
 
 	return mr.Markets, nil
-}
-
-// Blocking function to wait for a target price
-func WaitForTargetPrice(m string, bp float64) float64 {
-	target := bp * TargetGainPercent
-	stopLoss := bp * StopLossPercent
-
-	var sellPrice float64
-	t := time.NewTicker(15 * time.Second)
-
-	fmt.Printf("Waiting for target price %f for Market %s\n", target, m)
-	for range t.C {
-		ticker, _ := GetTicker(m)
-
-		if ticker.Last >= target || ticker.Last <= stopLoss {
-			t.Stop()
-			sellPrice = ticker.Last
-		}
-	}
-
-	if sellPrice < target {
-		fmt.Printf("Selling shitcoin %s for loss at Value %f\n", m, sellPrice)
-	} else {
-		fmt.Printf("Selling shitcoin %s for gain at Value %f\n", m, sellPrice)
-	}
-	return sellPrice
 }
 
 func get(url string) *http.Response {

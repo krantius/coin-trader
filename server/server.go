@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -16,7 +17,7 @@ type Server struct {
 
 func NewServer() *Server {
 	return &Server{
-		b: NewMockBroker(),
+		b: NewFakeBroker(),
 	}
 }
 
@@ -35,7 +36,20 @@ func (s *Server) statusHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) orderHandler(w http.ResponseWriter, r *http.Request) {
-	j, err := json.Marshal(s.b.Exchange())
+	j, err := json.Marshal(s.b)
+	if err != nil {
+		fmt.Printf("%v", err)
+	}
+
+	w.Write(j)
+}
+
+func (s *Server) topHandler(w http.ResponseWriter, r *http.Request) {
+	sort.Slice(s.Trackers, func(i, j int) bool {
+		return s.Trackers[i].PercentChange < s.Trackers[j].PercentChange
+	})
+
+	j, err := json.Marshal(s.Trackers)
 	if err != nil {
 		fmt.Printf("%v", err)
 	}
@@ -46,7 +60,8 @@ func (s *Server) orderHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) Run() {
 	http.HandleFunc("/", s.rootHandler)
 	http.HandleFunc("/status", s.statusHandler)
-	http.HandleFunc("/exchange", s.orderHandler)
+	http.HandleFunc("/orders", s.orderHandler)
+	http.HandleFunc("/top", s.topHandler)
 
 	go s.b.Work()
 
@@ -61,7 +76,7 @@ func (s *Server) Run() {
 	}
 
 	port := os.Getenv("PORT")
-	fmt.Println("Starting server on port 8080")
+	fmt.Printf("Starting server on port %s\n", port)
 	err := http.ListenAndServe(":"+port, nil)
 	fmt.Printf("error yo: %v\n", err)
 }
