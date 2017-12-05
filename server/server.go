@@ -1,24 +1,38 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
-	"sort"
-	"strings"
 )
 
 type Server struct {
-	b        *Broker
-	Trackers []*Tracker `json:"trackers"`
+	Brokers []*Broker `json:"brokers"`
+}
+
+type trackerConfig struct {
+	Sustain    int     `json:"sustain"`
+	DataSize   int     `json:"dataSize"`
+	BuyPercent float64 `json:"buyPercent"`
+	Name       string  `json:"name"`
 }
 
 func NewServer() *Server {
-	return &Server{
-		b: NewFakeBroker(),
+	configs := []trackerConfig{
+		{12, 60, 10, "Two minute sustain, 10 minute history, 10% buy percent"},
+		{6, 60, 10, "One minute sustain, 10 minute history, 10% buy percent"},
+		{12, 60, 15, "Two minute sustain, 10 minute history, 15% buy percent"},
+		{3, 60, 20, "30 second sustain, 10 minute history, 20% buy percent"},
+		{30, 180, 8, "5 minute sustain, 30 minute history, 8% buy percent"},
 	}
+
+	s := &Server{}
+	for _, c := range configs {
+		s.Brokers = append(s.Brokers, NewFakeBroker(c))
+	}
+
+	return s
 }
 
 func (s *Server) rootHandler(w http.ResponseWriter, r *http.Request) {
@@ -35,44 +49,12 @@ func (s *Server) statusHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func (s *Server) orderHandler(w http.ResponseWriter, r *http.Request) {
-	j, err := json.Marshal(s.b)
-	if err != nil {
-		fmt.Printf("%v", err)
-	}
-
-	w.Write(j)
-}
-
-func (s *Server) topHandler(w http.ResponseWriter, r *http.Request) {
-	sort.Slice(s.Trackers, func(i, j int) bool {
-		return s.Trackers[i].PercentChange < s.Trackers[j].PercentChange
-	})
-
-	j, err := json.Marshal(s.Trackers)
-	if err != nil {
-		fmt.Printf("%v", err)
-	}
-
-	w.Write(j)
-}
-
 func (s *Server) Run() {
 	http.HandleFunc("/", s.rootHandler)
 	http.HandleFunc("/status", s.statusHandler)
-	http.HandleFunc("/orders", s.orderHandler)
-	http.HandleFunc("/top", s.topHandler)
 
-	go s.b.Work()
-
-	markets, _ := GetMarkets()
-	for _, m := range markets {
-		if !strings.HasPrefix(m.MarketName, "BTC") {
-			continue
-		}
-		t := NewTracker(m.MarketName, s.b.trackerCh)
-		s.Trackers = append(s.Trackers, t)
-		go t.Start(context.Background())
+	for _, b := range s.Brokers {
+		go b.Work()
 	}
 
 	port := os.Getenv("PORT")

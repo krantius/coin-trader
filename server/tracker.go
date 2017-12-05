@@ -8,25 +8,32 @@ import (
 )
 
 const (
-	dataSize = 60
+//dataSize = 60
 )
 
 type Tracker struct {
 	Market        string `json:"Market"`
-	arr           [dataSize]float64
+	arr           []float64
 	current       int
 	base          int
 	PercentChange float64 `json:"PercentChange"`
 	wrap          bool
 	buyChannel    chan string
 	hasAlerted    bool
+	sustain       int
+	buyPercent    float64
+	ds            int
 }
 
-func NewTracker(market string, c chan string) *Tracker {
+func NewTracker(market string, c chan string, config trackerConfig) *Tracker {
 	t := &Tracker{
 		Market:        market,
 		PercentChange: 0.0,
 		buyChannel:    c,
+		sustain:       config.Sustain,
+		buyPercent:    config.BuyPercent,
+		ds:            config.DataSize,
+		arr:           make([]float64, config.DataSize),
 	}
 	return t
 }
@@ -55,15 +62,23 @@ func (t *Tracker) calculateChange() {
 		return
 	}
 
-	if t.PercentChange > 15.0 {
-		if !t.hasAlerted {
+	if t.PercentChange > 10.0 {
+		t.sustain++
+		if !t.hasAlerted && t.sustain >= 12 {
 			t.buyChannel <- t.Market
 			t.hasAlerted = true
 		}
-	} else if t.PercentChange < -20.0 {
+		return
+
+	}
+
+	if t.PercentChange < -15.0 {
 		fmt.Printf("%s DUMPING: %f from %f to %f\n", t.Market, t.PercentChange, base, current)
 		t.hasAlerted = false
+		return
 	}
+
+	t.sustain = 0
 }
 
 func (t *Tracker) getBase() float64 {
@@ -79,7 +94,7 @@ func (t *Tracker) update(last float64) {
 	t.calculateChange()
 	t.current++
 
-	if t.current == dataSize {
+	if t.current == t.ds {
 		t.current = 0
 		t.wrap = true
 	}
@@ -89,7 +104,7 @@ func (t *Tracker) update(last float64) {
 	}
 
 	t.base++
-	if t.base == dataSize {
+	if t.base == t.ds {
 		t.base = 0
 	}
 }

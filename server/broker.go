@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -24,6 +25,8 @@ type Broker struct {
 	Success      int     `json:"success"`
 	Fail         int     `json:"fail"`
 	Orders       []Order `json:"orders"`
+	trackers     []*Tracker
+	Config       trackerConfig `json:"trackerConfig"`
 }
 
 func NewBroker() *Broker {
@@ -35,22 +38,20 @@ func NewBroker() *Broker {
 	}
 }
 
-func NewFakeBroker() *Broker {
+func NewFakeBroker(config trackerConfig) *Broker {
 	return &Broker{
 		buyCh:     make(chan string, 25),
 		trackerCh: make(chan string),
 		state:     BUY,
 		exchange:  NewFakeExchange(),
 		Orders:    []Order{},
+		Config:    config,
 	}
 }
 
 func (b *Broker) listen() {
 	for market := range b.trackerCh {
 		fmt.Printf("Received buy order for %s\n", market)
-		/*	if b.getState() == BUY {
-			b.buyCh <- market
-		}*/
 
 		go b.HandleTrade(market)
 	}
@@ -58,6 +59,16 @@ func (b *Broker) listen() {
 
 func (b *Broker) Work() {
 	go b.listen()
+
+	markets, _ := GetMarkets()
+	for _, m := range markets {
+		if !strings.HasPrefix(m.MarketName, "BTC") {
+			continue
+		}
+		t := NewTracker(m.MarketName, b.trackerCh, b.Config)
+		b.trackers = append(b.trackers, t)
+		go t.Start(context.Background())
+	}
 	/*
 		for {
 			switch b.state {
