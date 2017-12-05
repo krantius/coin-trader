@@ -132,7 +132,7 @@ func WaitForTargetPrice(m string, target, stopLoss float64) float64 {
 
 			if ticker.Last >= target {
 				newTarget := target * TargetGainPercent
-				stopLoss = target * .95
+				stopLoss = target * .97
 				fmt.Printf("Hit target %v let's try upping the target to %v and stoploss to %v\n", target, newTarget, stopLoss)
 				target = newTarget
 			}
