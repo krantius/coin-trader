@@ -130,12 +130,20 @@ func WaitForTargetPrice(m string, target, stopLoss float64) float64 {
 		case <-t.C:
 			ticker, _ := GetTicker(m)
 
-			if ticker.Last >= target || ticker.Last <= stopLoss {
+			if ticker.Last >= target {
+				newTarget := target * TargetGainPercent
+				stopLoss = target * .95
+				fmt.Printf("Hit target %v let's try upping the target to %v and stoploss to %v\n", target, newTarget, stopLoss)
+				target = newTarget
+			}
+
+			if ticker.Last <= stopLoss {
 				cancel()
 				t.Stop()
 				sellPrice = ticker.Last
-				fmt.Printf("Hit sell price of %v for coin %s", sellPrice, m)
+				fmt.Printf("Hit sell price of %v for coin %s\n", sellPrice, m)
 			}
+
 		case <-ctx.Done():
 			if sellPrice < target {
 				fmt.Printf("Selling shitcoin %s for loss at Value %v\n", m, sellPrice)
