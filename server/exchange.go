@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
 
 const (
@@ -63,6 +64,7 @@ func (e *FakeExchange) Buy(market string) (Order, error) {
 		Rate:     ticker.Last,
 		Units:    units,
 		Bitcoin:  1.0,
+		Time:     time.Now(),
 	}
 
 	e.Orders = append(e.Orders, *order)
@@ -86,6 +88,7 @@ func (e *FakeExchange) Sell(market string, units float64) (Order, error) {
 		Rate:     last.Last,
 		Units:    units,
 		Bitcoin:  btc,
+		Time:     time.Now(),
 	}
 
 	e.Orders = append(e.Orders, *order)

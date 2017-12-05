@@ -21,7 +21,9 @@ type Broker struct {
 	stateM       sync.Mutex
 	exchange     Exchange
 	multipleBuys bool
-	Orders       []Order `json:"Orders"`
+	Success      int     `json:"success"`
+	Fail         int     `json:"fail"`
+	Orders       []Order `json:"orders"`
 }
 
 func NewBroker() *Broker {
@@ -107,6 +109,12 @@ func (b *Broker) HandleTrade(currency string) {
 	}
 
 	b.Orders = append(b.Orders, so)
+
+	if bo.Rate < so.Rate {
+		b.Success++
+	} else {
+		b.Fail++
+	}
 }
 
 // Blocking function to wait for a target price

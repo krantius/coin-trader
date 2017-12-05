@@ -1,6 +1,9 @@
 package server
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type TickerResponse struct {
 	Success bool   `json:"success"`
@@ -47,7 +50,8 @@ type Coin struct {
 }
 
 type Status struct {
-	Trackers []Tracker `json:"trackers"`
+	Success int `json:"success"`
+	Fail    int `json:"fail"`
 }
 
 type OrderType string
@@ -62,4 +66,5 @@ type Order struct {
 	Rate     float64   `json:"rate"`
 	Units    float64   `json:"units"`
 	Bitcoin  float64   `json:"btc"`
+	Time     time.Time `json:"time"`
 }
